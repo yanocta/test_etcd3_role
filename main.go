@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"context"
+	"fmt"
 	"log"
-	"github.com/coreos/etcd/clientv3"
-	"time"
 	"strconv"
+	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var (
@@ -94,7 +95,7 @@ func WatchDemo(ctx context.Context, cli *clientv3.Client, kv clientv3.KV) {
 	stopChan := make(chan interface{})
 	go func() {
 		watchChan := cli.Watch(ctx, "key", clientv3.WithPrefix())
-		for true {
+		for {
 			select {
 			case result := <-watchChan:
 				for _, ev := range result.Events {
@@ -135,7 +136,6 @@ func LeaseDemo(ctx context.Context, cli *clientv3.Client, kv clientv3.KV) {
 		fmt.Println("No 'key'")
 	}
 
-
 	lease, err := cli.Grant(ctx, 1)
 	if err != nil {
 		log.Fatal(err)
@@ -161,17 +161,70 @@ func LeaseDemo(ctx context.Context, cli *clientv3.Client, kv clientv3.KV) {
 func main() {
 	ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
 	cli, err := clientv3.New(clientv3.Config{
-			DialTimeout: dialTimeout,
-		Endpoints: []string{"127.0.0.1:2379"},
+		DialTimeout: dialTimeout,
+		Endpoints:   []string{"localhost:2379", "localhost:22379", "localhost:32379"},
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("Create Done!")
 	defer cli.Close()
+
 	kv := clientv3.NewKV(cli)
 
-	GetSingleValueDemo(ctx, kv)
-	GetMultipleValuesWithPaginationDemo(ctx, kv)
-	WatchDemo(ctx, cli, kv)
-	LeaseDemo(ctx, cli, kv)
+	// GetSingleValueDemo(ctx, kv)
+	// GetMultipleValuesWithPaginationDemo(ctx, kv)
+	// WatchDemo(ctx, cli, kv)
+	// LeaseDemo(ctx, cli, kv)
+
+	// TestFuncPut(ctx, kv)
+	TestFuncGetRevision(ctx, kv)
+}
+
+func TestFuncGetRevision(ctx context.Context, kv clientv3.KV) {
+	revNum := 11
+
+	for i := revNum; i > 0; i-- {
+		fmt.Println("*** TestFunc()\n***Revision Number: ", i)
+
+		gr, err := kv.Get(ctx, "key1", clientv3.WithRev(int64(i)))
+		if err != nil {
+			// log.Fatal(err)
+			return
+		}
+
+		fmt.Println("Value: ", string(gr.Kvs[0].Value), "Revision: ", gr.Header.Revision)
+		fmt.Println("Create Rev: ", gr.Kvs[0].CreateRevision, "Mod Rev: ", gr.Kvs[0].ModRevision)
+		fmt.Println("Key Version: ", gr.Kvs[0].Version, "\n")
+	}
+}
+
+func TestFuncPut(ctx context.Context, kv clientv3.KV) {
+	pr, err := kv.Put(ctx, "key1", "444")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(pr.Header.Revision)
+}
+
+func CreateOne(ctx context.Context, kv clientv3.KV, key string, value string) (*clientv3.PutResponse, error) {
+	pr, err := kv.Put(ctx, "key1", "444")
+	if err != nil {
+		return nil, err
+	}
+
+	return pr, nil
+}
+
+func DeleteOne(ctx context.Context, kv clientv3.KV, key string) {
+	kv.Delete(ctx, key)
+
+	return
+}
+
+func DeleteMultiple(ctx context.Context, kv clientv3.KV, keyPrefix string) {
+	kv.Delete(ctx, keyPrefix, clientv3.WithPrefix())
+
+	return
 }
