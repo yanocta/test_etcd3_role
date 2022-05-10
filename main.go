@@ -4,11 +4,18 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"go.etcd.io/etcd/clientv3"
 )
 
+var (
+	dialTimeout = 2 * time.Second
+	endpoints   = []string{"localhost:2379", "localhost:22379", "localhost:32379"}
+)
+
 func main() {
+
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: dialTimeout,
