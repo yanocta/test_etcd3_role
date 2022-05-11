@@ -15,7 +15,6 @@ var (
 )
 
 func main() {
-
 	cli, err := clientv3.New(clientv3.Config{
 		Endpoints:   endpoints,
 		DialTimeout: dialTimeout,
