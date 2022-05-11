@@ -175,6 +175,7 @@ func main() {
 
 	kv := clientv3.NewKV(cli)
 
+	// =======================================================
 	// Create One
 	pr, err := PutOne(ctx, kv, "fookey", "12")
 	if err != nil {
@@ -183,7 +184,7 @@ func main() {
 
 	fmt.Println("\nCreate One Done")
 	fmt.Println("Revision Number: ", pr.Header.Revision)
-
+	// =======================================================
 	// Get One
 	gr, err := GetOne(ctx, kv, "fookey")
 	if err != nil {
@@ -196,6 +197,7 @@ func main() {
 	fmt.Println("Create Revision: ", gr.Kvs[0].CreateRevision)
 	fmt.Println("Mod Revision: ", gr.Kvs[0].ModRevision)
 
+	// =======================================================
 	// Get with Prefix
 	_, err = PutOne(ctx, kv, "fooNew", "13")
 	if err != nil {
@@ -212,6 +214,8 @@ func main() {
 		fmt.Println(string(item.Key), string(item.Value))
 	}
 
+	// =======================================================
+	// Test Revision
 	fmt.Println("\nTest Revision")
 	pr = TestFuncPut(ctx, kv)
 
