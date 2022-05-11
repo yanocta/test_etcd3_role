@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
 	"time"
 
 	clientv3 "go.etcd.io/etcd/client/v3"
@@ -13,8 +12,10 @@ import (
 var (
 	dialTimeout    = 2 * time.Second
 	requestTimeout = 10 * time.Second
+	endPoints      = []string{"localhost:2379", "localhost:22379", "localhost:32379"}
 )
 
+/*
 func GetSingleValueDemo(ctx context.Context, kv clientv3.KV) {
 	fmt.Println("*** GetSingleValueDemo()")
 	// Delete all keys
@@ -157,64 +158,95 @@ func LeaseDemo(ctx context.Context, cli *clientv3.Client, kv clientv3.KV) {
 		fmt.Println("No more 'key'")
 	}
 }
+*/
 
 func main() {
+	// Start
 	ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
 	cli, err := clientv3.New(clientv3.Config{
 		DialTimeout: dialTimeout,
-		Endpoints:   []string{"localhost:2379", "localhost:22379", "localhost:32379"},
+		Endpoints:   endPoints,
 	})
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("Create Done!")
+	fmt.Println("\nCreate Done!")
 	defer cli.Close()
 
 	kv := clientv3.NewKV(cli)
 
-	// GetSingleValueDemo(ctx, kv)
-	// GetMultipleValuesWithPaginationDemo(ctx, kv)
-	// WatchDemo(ctx, cli, kv)
-	// LeaseDemo(ctx, cli, kv)
-
-	// TestFuncPut(ctx, kv)
-	TestFuncGetRevision(ctx, kv)
-}
-
-func TestFuncGetRevision(ctx context.Context, kv clientv3.KV) {
-	revNum := 11
-
-	for i := revNum; i > 0; i-- {
-		fmt.Println("*** TestFunc()\n***Revision Number: ", i)
-
-		gr, err := kv.Get(ctx, "key1", clientv3.WithRev(int64(i)))
-		if err != nil {
-			// log.Fatal(err)
-			return
-		}
-
-		fmt.Println("Value: ", string(gr.Kvs[0].Value), "Revision: ", gr.Header.Revision)
-		fmt.Println("Create Rev: ", gr.Kvs[0].CreateRevision, "Mod Rev: ", gr.Kvs[0].ModRevision)
-		fmt.Println("Key Version: ", gr.Kvs[0].Version, "\n")
-	}
-}
-
-func TestFuncPut(ctx context.Context, kv clientv3.KV) {
-	pr, err := kv.Put(ctx, "key1", "444")
+	// Create One
+	pr, err := PutOne(ctx, kv, "fookey", "12")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
 
-	fmt.Println(pr.Header.Revision)
+	fmt.Println("\nCreate One Done")
+	fmt.Println("Revision Number: ", pr.Header.Revision)
+
+	// Get One
+	gr, err := GetOne(ctx, kv, "fookey")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println("\nGet One Done")
+	fmt.Println("Key: ", string(gr.Kvs[0].Key))
+	fmt.Println("Value: ", string(gr.Kvs[0].Value))
+	fmt.Println("Create Revision: ", gr.Kvs[0].CreateRevision)
+	fmt.Println("Mod Revision: ", gr.Kvs[0].ModRevision)
+
+	// Get with Prefix
+	_, err = PutOne(ctx, kv, "fooNew", "13")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	gpref, err := GetWithPrefix(ctx, kv, "foo")
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println("\nGet Multiple Done")
+	for _, item := range gpref.Kvs {
+		fmt.Println(string(item.Key), string(item.Value))
+	}
+
+	fmt.Println("\nTest Revision")
+	pr = TestFuncPut(ctx, kv)
+
+	TestFuncGetRevision(ctx, kv, pr)
 }
 
-func CreateOne(ctx context.Context, kv clientv3.KV, key string, value string) (*clientv3.PutResponse, error) {
-	pr, err := kv.Put(ctx, "key1", "444")
+func PutOne(ctx context.Context, kv clientv3.KV, key string, value string) (*clientv3.PutResponse, error) {
+	pr, err := kv.Put(ctx, key, value)
 	if err != nil {
 		return nil, err
 	}
 
 	return pr, nil
+}
+
+func GetOne(ctx context.Context, kv clientv3.KV, key string) (*clientv3.GetResponse, error) {
+	gr, err := kv.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	return gr, nil
+}
+
+func GetWithPrefix(ctx context.Context, kv clientv3.KV, key string) (*clientv3.GetResponse, error) {
+	opts := []clientv3.OpOption{
+		clientv3.WithPrefix(),
+		clientv3.WithSort(clientv3.SortByKey, clientv3.SortAscend),
+	}
+	gr, err := kv.Get(ctx, key, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return gr, nil
 }
 
 func DeleteOne(ctx context.Context, kv clientv3.KV, key string) {
@@ -227,4 +259,34 @@ func DeleteMultiple(ctx context.Context, kv clientv3.KV, keyPrefix string) {
 	kv.Delete(ctx, keyPrefix, clientv3.WithPrefix())
 
 	return
+}
+
+func TestFuncPut(ctx context.Context, kv clientv3.KV) *clientv3.PutResponse {
+	pr, err := kv.Put(ctx, "key1", "444")
+	if err != nil {
+		return nil
+	}
+
+	return pr
+}
+
+func TestFuncGetRevision(ctx context.Context, kv clientv3.KV, pr *clientv3.PutResponse) {
+	revNum := pr.Header.Revision
+
+	for i := revNum; i > 0; i-- {
+
+		gr, err := kv.Get(ctx, "key1", clientv3.WithRev(int64(i)))
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		if len(gr.Kvs) == 0 {
+			return
+		}
+
+		fmt.Println("*** TestFunc()\n***Revision Number: ", i)
+		fmt.Println("Value: ", string(gr.Kvs[0].Value), "Revision: ", gr.Header.Revision)
+		fmt.Println("Create Rev: ", gr.Kvs[0].CreateRevision, "Mod Rev: ", gr.Kvs[0].ModRevision)
+		fmt.Println("Key Version: ", gr.Kvs[0].Version, "\n")
+	}
 }
