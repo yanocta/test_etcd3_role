@@ -1,12 +1,13 @@
 package main
 
 import (
-	"fmt"
 	"context"
+	"fmt"
 	"log"
-	"github.com/coreos/etcd/clientv3"
-	"time"
 	"strconv"
+	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
 var (
@@ -135,7 +136,6 @@ func LeaseDemo(ctx context.Context, cli *clientv3.Client, kv clientv3.KV) {
 		fmt.Println("No 'key'")
 	}
 
-
 	lease, err := cli.Grant(ctx, 1)
 	if err != nil {
 		log.Fatal(err)
@@ -161,8 +161,8 @@ func LeaseDemo(ctx context.Context, cli *clientv3.Client, kv clientv3.KV) {
 func main() {
 	ctx, _ := context.WithTimeout(context.Background(), requestTimeout)
 	cli, err := clientv3.New(clientv3.Config{
-			DialTimeout: dialTimeout,
-		Endpoints: []string{"127.0.0.1:2379"},
+		DialTimeout: dialTimeout,
+		Endpoints:   []string{"127.0.0.1:2379"},
 	})
 	if err != nil {
 		log.Fatal(err)
